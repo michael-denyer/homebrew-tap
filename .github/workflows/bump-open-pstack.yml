@@ -1,0 +1,51 @@
+name: Bump open-pstack
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: bump-open-pstack
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # commits the formula bump
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+
+      - name: Point the formula at the latest pstack-claude release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          formula=Formula/open-pstack.rb
+          tag=$(gh release view --repo michael-denyer/pstack-claude --json tagName --jq .tagName)
+          if ! printf '%s\n' "$tag" | grep --extended-regexp '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "unexpected release tag: $tag" >&2
+            exit 1
+          fi
+          url="https://github.com/michael-denyer/pstack-claude/archive/refs/tags/$tag.tar.gz"
+          if grep --fixed-strings "url \"$url\"" "$formula"; then
+            echo "formula already at $tag"
+            exit 0
+          fi
+          curl --fail --location --show-error --output /tmp/source.tar.gz "$url"
+          if ! tar -tzf /tmp/source.tar.gz | grep "/installer/bin/open-pstack.mjs$"; then
+            echo "$tag has no installer; leaving the formula alone"
+            exit 0
+          fi
+          sha=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)
+          sed -i -E "s|^  url \".*\"$|  url \"$url\"|; s|^  sha256 \".*\"$|  sha256 \"$sha\"|" "$formula"
+          git diff
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --all --message "open-pstack ${tag#v}"
+          git push
