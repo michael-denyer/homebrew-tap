@@ -1,8 +1,8 @@
 class OpenPstack < Formula
   desc "Install pstack agent skills into Claude Code, Codex, Pi, and other harnesses"
   homepage "https://github.com/michael-denyer/pstack-claude"
-  url "https://github.com/michael-denyer/pstack-claude/archive/refs/tags/v0.9.150.tar.gz"
-  sha256 "8667ee2be846b097425ccf71f343a39c1627c9bbb3122bc560fb3bb2740d3680"
+  url "https://github.com/michael-denyer/pstack-claude/archive/refs/tags/v0.9.151.tar.gz"
+  sha256 "fe3cf4c5ccb3dbb9e5a9f7e2e1e09b51bd6bec8d3b54f2ef5977c42188187929"
   license "MIT"
 
   depends_on "node"
