@@ -7,4 +7,4 @@ brew install michael-denyer/tap/open-pstack
 open-pstack
 ```
 
-`open-pstack` installs [pstack](https://github.com/michael-denyer/pstack-claude) into the agent harnesses it finds on your `PATH`. The scheduled updater opens a pull request after upstream CI passes on the tagged commit. The formula pins the commit archive and its SHA-256. The Homebrew check audits, installs, and tests the formula before merge.
+`open-pstack` installs [pstack](https://github.com/michael-denyer/pstack-claude) into the agent harnesses it finds on your `PATH`. The scheduled updater stages a branch after upstream CI passes on the tagged commit. A maintainer opens the pull request using the link in the workflow summary. The formula pins the commit archive and its SHA-256. The Homebrew check audits, installs, and tests the formula before merge.

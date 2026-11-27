@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # push the proposed formula to its update branch
-      pull-requests: write # open the formula PR for CI and maintainer merge
+      pull-requests: read # skip a version that already has an open proposal
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,5 +70,5 @@ jobs:
           else
             git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin "HEAD:refs/heads/$branch"
           fi
-          gh pr create --base main --head "$branch" --title "Update open-pstack to ${tag#v}" \
-            --body "Upstream release $tag passed main CI at $commit. The formula pins its source archive and SHA-256."
+          printf 'Upstream %s passed CI at %s. [Open the formula PR](%s/%s/compare/main...%s?expand=1).\n' \
+            "$tag" "$commit" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$branch" >> "$GITHUB_STEP_SUMMARY"
