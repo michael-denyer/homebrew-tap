@@ -1,0 +1,29 @@
+name: Formula
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  formula:
+    name: Homebrew formula
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit, install and test the checked-out formula
+        run: |
+          tap="$(brew --repository)/Library/Taps/michael-denyer/homebrew-tap"
+          mkdir -p "$(dirname "$tap")"
+          ln -s "$GITHUB_WORKSPACE" "$tap"
+          brew audit --strict michael-denyer/tap/open-pstack
+          brew install --build-from-source michael-denyer/tap/open-pstack
+          brew test michael-denyer/tap/open-pstack
