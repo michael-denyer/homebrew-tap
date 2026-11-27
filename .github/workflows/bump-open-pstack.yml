@@ -13,39 +13,62 @@ concurrency:
 
 jobs:
   bump:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write # commits the formula bump
+      contents: write # push the proposed formula to its update branch
+      pull-requests: write # open the formula PR for CI and maintainer merge
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Point the formula at the latest pstack-claude release
+      - name: Propose the tested upstream release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          upstream=michael-denyer/pstack-claude
           formula=Formula/open-pstack.rb
-          tag=$(gh release view --repo michael-denyer/pstack-claude --json tagName --jq .tagName)
+          tag=$(gh release view --repo "$upstream" --json tagName --jq .tagName)
           if ! printf '%s\n' "$tag" | grep --extended-regexp '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "unexpected release tag: $tag" >&2
             exit 1
           fi
-          url="https://github.com/michael-denyer/pstack-claude/archive/refs/tags/$tag.tar.gz"
-          if grep --fixed-strings "url \"$url\"" "$formula"; then
+          commit=$(gh api "repos/$upstream/commits/$tag" --jq .sha)
+          [[ $commit =~ ^[0-9a-f]{40}$ ]]
+          url="https://github.com/$upstream/archive/$commit.tar.gz"
+          if grep -Fxq "  url \"$url\"" "$formula" && grep -Fxq "  version \"${tag#v}\"" "$formula"; then
             echo "formula already at $tag"
             exit 0
           fi
-          curl --fail --location --show-error --output /tmp/source.tar.gz "$url"
-          if ! tar -tzf /tmp/source.tar.gz | grep "/installer/bin/open-pstack.mjs$"; then
-            echo "$tag has no installer; leaving the formula alone"
+          status=$(gh api "repos/$upstream/compare/main...$commit" --jq .status)
+          [[ $status == behind || $status == identical ]]
+          ci=$(gh run list --repo "$upstream" --workflow ci.yml --branch main --event push \
+            --commit "$commit" --limit 1 --json conclusion --jq '.[0].conclusion')
+          [[ $ci == success ]]
+          branch="bump-open-pstack-$tag"
+          existing=$(gh pr list --head "$branch" --base main --json number --jq '.[0].number // empty')
+          if [[ -n $existing ]]; then
             exit 0
           fi
-          sha=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)
-          sed -i -E "s|^  url \".*\"$|  url \"$url\"|; s|^  sha256 \".*\"$|  sha256 \"$sha\"|" "$formula"
+          curl --fail --location --show-error --output "$RUNNER_TEMP/source.tar.gz" "$url"
+          tar -tzf "$RUNNER_TEMP/source.tar.gz" > "$RUNNER_TEMP/archive-paths"
+          grep -Fxq "pstack-claude-$commit/installer/bin/open-pstack.mjs" "$RUNNER_TEMP/archive-paths"
+          sha=$(sha256sum "$RUNNER_TEMP/source.tar.gz" | cut -d' ' -f1)
+          sed -i -E '/^  version "/d' "$formula"
+          sed -i -E "s|^  url \".*\"$|  url \"$url\"\\n  version \"${tag#v}\"|; s|^  sha256 \".*\"$|  sha256 \"$sha\"|" "$formula"
           git diff
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit --all --message "open-pstack ${tag#v}"
-          git push
+          git add -- "$formula"
+          git commit --message "Pin open-pstack ${tag#v} to its tested commit"
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch"; then
+            git fetch origin "refs/heads/$branch"
+            git diff --exit-code HEAD FETCH_HEAD
+          else
+            git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin "HEAD:refs/heads/$branch"
+          fi
+          gh pr create --base main --head "$branch" --title "Update open-pstack to ${tag#v}" \
+            --body "Upstream release $tag passed main CI at $commit. The formula pins its source archive and SHA-256."
