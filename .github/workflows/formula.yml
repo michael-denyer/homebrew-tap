@@ -28,6 +28,7 @@ jobs:
           tap="$(brew --repository)/Library/Taps/michael-denyer/homebrew-tap"
           mkdir -p "$(dirname "$tap")"
           ln -s "$GITHUB_WORKSPACE" "$tap"
+          brew trust --formula michael-denyer/tap/open-pstack
           brew audit --strict michael-denyer/tap/open-pstack
           brew install --build-from-source michael-denyer/tap/open-pstack
           brew test michael-denyer/tap/open-pstack
